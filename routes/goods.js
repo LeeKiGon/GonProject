@@ -10,35 +10,37 @@ router.get("/", (req, res) => {
 router.get("/goods", async (req, res) => {
 const {category} = req.query;
 
-    const goods = await Goods.find({category});
+    const goods = await Goods.find({category});2
 
     res.json({
         goods
     });
 });
 
-router.get("/goods/:goodsId", async (req, res) => {
-    const { goodsId } = req.params
+router.get("/goods/cart", async (req, res) => {
+    const carts = await Cart.find();
+    const goodsIds = carts.map((cart) => cart.goodsId);
 
-    const [detail] = await Goods.find({ goodsId: Number(goodsId) });
+    const goods = await Goods.find({ goodsId: goodsIds });
 
     res.json({
-        detail,
+        cart : carts.map((cart) => ({
+            quantity: cart.quantity,
+            goods: goods.find((item) => item.goodsId === cart.goodsId),
+        })),
     });
 });
 
-router.post("/goods/:goodsId/cart", async (req,res) => {
-    const {goodsId} = req.params;
-    const {quantity} = req.body;
+router.get("/goods/:goodsId", async (req, res) => {
+    const { goodsId } = req.params
 
-    const existsCarts = await Cart.find({ goodsId: Number(goodsId) })
-    if (existsCarts.length) {
-        return res.status(400).json({ success: false, errorMessage: "이미 장바구니에 들어있는 상품입니다."})
-    }
+    const [goods] = await Goods.find({ goodsId: Number(goodsId) });
 
-    await Cart.create({ goodsId: Number(goodsId), quantity });
-    res.json({ seccess: true});
+    res.json({
+        goods,
+    });
 });
+
 
 router.delete("/goods/:goodsId/cart", async (req, res) => {
     const {goodsId} = req.params;
@@ -55,13 +57,18 @@ router.put("/goods/:goodsId/cart", async (req, res) => {
     const { goodsId } = req.params;
     const { quantity } = req.body;
 
-    const existsCarts = await Cart.find({ goodsId: Number(goodsId) })
-    if (!existsCarts.length) {
-        return res.status(400).json({ success: false, errorMessage: "장바구니에 해당 상품이 없습니다.."})
+    if(quantity < 1) {
+        res.status(400).json({error : "quantity value must be more than 0"});
+        return;
     }
 
-    await Cart.updateOne({ goodsId: Number(goodsId)}, { $set: { quantity }});
-
+    const existsCarts = await Cart.find({ goodsId: Number(goodsId) })
+    if (!existsCarts.length) {
+        await Cart.create({ goodsId: Number(goodsId), quantity });
+    }else{
+        await Cart.updateOne({ goodsId: Number(goodsId)}, { $set: { quantity }});
+    }
+    
     res.json({ success: true});
 })
 
@@ -80,14 +87,14 @@ router.post("/goods", async (req, res) => {
     res.json({ goods: createdGoods });
 });
 
-router.get("/goods/carts", async (rep, res) => {
+router.get("/goods/cart", async (rep, res) => {
     const carts = await Carts.find();
     const goodsIds = carts.map((cart) => cart.goodsId);
 
     const goods = await Goods.find({ goodsId: goodsIds });
 
     res.json({
-        carts: carts.map((cart) => ({
+        cart: carts.map((cart) => ({
                 quantity: cart.quantity,
                 goods: goods.find((item) => item.goodsId === cart.goodsId),
         })),
